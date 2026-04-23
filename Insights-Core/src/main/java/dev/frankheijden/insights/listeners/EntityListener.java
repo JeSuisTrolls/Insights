@@ -165,7 +165,14 @@ public class EntityListener extends InsightsListener {
     }
 
     protected void handleEntityRemoveFromWorld(Entity entity) {
-        if (!entity.isDead() || removedEntities.remove(entity.getUniqueId())) return;
+        if (!entity.isDead()) return;
+        if (removedEntities.remove(entity.getUniqueId())) return;
+
+        if (isSpawnLimited(entity.getType())) {
+            handleModification(entity.getLocation(), entity.getType(), -1);
+            return;
+        }
+
         handleEntityRemoval(entity, false);
     }
 
@@ -186,8 +193,22 @@ public class EntityListener extends InsightsListener {
         handleModification(location, entityType, delta);
     }
 
+    /**
+     * Returns true if the entity type is limited via spawn limits (not LIMITED_ENTITIES).
+     */
+    protected boolean isSpawnLimited(EntityType entityType) {
+        return !LIMITED_ENTITIES.contains(entityType)
+                && plugin.getLimits().getFirstLimit(ScanObject.of(entityType), limit -> true).isPresent();
+    }
+
     protected void handleEntityRemoval(Entity entity, boolean isPlayer) {
         EntityType entityType = entity.getType();
+
+        if (isSpawnLimited(entityType)) {
+            handleModification(entity.getLocation(), entityType, -1);
+            return;
+        }
+
         if (!LIMITED_ENTITIES.contains(entityType)) return;
 
         Location location = entity.getLocation();
@@ -202,7 +223,6 @@ public class EntityListener extends InsightsListener {
             }
         }
 
-        // Update the cache if it was not removed by a player
         handleModification(location, entityType, -delta);
     }
 
@@ -237,51 +257,56 @@ public class EntityListener extends InsightsListener {
         return Optional.empty();
     }
 
-
+    /**
+     * Handles creature spawn events caused by players (eggs, breeding, spawners).
+     */
     @AllowPriorityOverride
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onCreatureSpawn(CreatureSpawnEvent event) {
         if (!PLAYER_CAUSED_SPAWN_REASONS.contains(event.getSpawnReason())) return;
-    
+
         EntityType entityType = event.getEntityType();
-        if (LIMITED_ENTITIES.contains(entityType)) return; // déjà géré ailleurs
-    
+        if (LIMITED_ENTITIES.contains(entityType)) return;
+
         ScanObject<?> item = ScanObject.of(entityType);
         Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, limit -> true);
         if (limitOptional.isEmpty()) return;
-    
+
         Location location = event.getLocation();
         Optional<Region> regionOptional = plugin.getAddonManager().getRegion(location);
         UUID worldUid = location.getWorld().getUID();
         long chunkKey = ChunkUtils.getKey(location);
-    
+
         Optional<Storage> storageOptional;
         if (regionOptional.isPresent()) {
             storageOptional = plugin.getAddonStorage().get(regionOptional.get().getKey());
         } else {
             storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
         }
-    
-        if (storageOptional.isEmpty()) return; // pas de cache = on laisse passer
-    
+
+        if (storageOptional.isEmpty()) return;
+
         Storage storage = storageOptional.get();
         Limit limit = limitOptional.get();
         LimitInfo limitInfo = limit.getLimit(entityType);
-    
+
         if (storage.count(limit, item) + 1 > limitInfo.getLimit()) {
             event.setCancelled(true);
         }
     }
-    
+
+    /**
+     * Monitors creature spawn events to update the cache.
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCreatureSpawnMonitor(CreatureSpawnEvent event) {
         if (!PLAYER_CAUSED_SPAWN_REASONS.contains(event.getSpawnReason())) return;
-    
+
         EntityType entityType = event.getEntityType();
         if (LIMITED_ENTITIES.contains(entityType)) return;
-    
+
         if (plugin.getLimits().getFirstLimit(ScanObject.of(entityType), limit -> true).isEmpty()) return;
-    
+
         handleModification(event.getLocation(), entityType, 1);
     }
 }
