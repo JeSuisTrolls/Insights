@@ -93,44 +93,77 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         UUID worldUid = world.getUID();
         long chunkKey = ChunkUtils.getKey(chunk);
 
-        boolean queued;
-        String area;
-        LimitEnvironment env;
+        // Vérifie la limite addon si dans une région
         if (regionOptional.isPresent()) {
             var region = regionOptional.get();
-            queued = plugin.getAddonScanTracker().isQueued(region.getKey());
-            area = plugin.getAddonManager().getAddon(region.getAddon()).getAreaName();
-            env = new LimitEnvironment(player, world.getName(), region.getAddon());
-        } else {
-            queued = plugin.getWorldChunkScanTracker().isQueued(worldUid, chunkKey);
-            area = "chunk";
-            env = new LimitEnvironment(player, world.getName());
+            boolean addonQueued = plugin.getAddonScanTracker().isQueued(region.getKey());
+            String addonArea = plugin.getAddonManager().getAddon(region.getAddon()).getAreaName();
+            LimitEnvironment addonEnv = new LimitEnvironment(player, world.getName(), region.getAddon());
+
+            if (addonQueued) {
+                if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
+                    plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_QUEUED).addTemplates(
+                            Messages.tagOf("area", addonArea)
+                    ).sendTo(player);
+                }
+                return true;
+            }
+
+            Optional<Limit> addonLimitOptional = plugin.getLimits().getFirstLimit(item, addonEnv);
+            if (addonLimitOptional.isPresent()) {
+                var addonLimit = addonLimitOptional.get();
+                var addonLimitInfo = addonLimit.getLimit(item);
+
+                Consumer<Storage> addonStorageConsumer = storage -> {
+                    if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
+                        plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_COMPLETED).sendTo(player);
+                    }
+                };
+
+                Optional<Storage> addonStorageOptional = handleAddonAddition(player, region, addonStorageConsumer);
+                if (addonStorageOptional.isEmpty()) return true;
+
+                long addonCount = addonStorageOptional.get().count(addonLimit, item);
+                if (addonCount + delta > addonLimitInfo.getLimit()) {
+                    plugin.getMessages().getMessage(Messages.Key.LIMIT_REACHED).addTemplates(
+                            Messages.tagOf("limit", StringUtils.pretty(addonLimitInfo.getLimit())),
+                            Messages.tagOf("name", addonLimitInfo.getName()),
+                            Messages.tagOf("area", addonArea)
+                    ).sendTo(player);
+                    return true;
+                }
+            }
         }
 
-        if (queued) {
+        // Vérifie la limite chunk (toujours, même dans une région)
+        boolean chunkQueued = plugin.getWorldChunkScanTracker().isQueued(worldUid, chunkKey);
+        LimitEnvironment chunkEnv = new LimitEnvironment(player, world.getName());
+
+        if (chunkQueued) {
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
                 plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_QUEUED).addTemplates(
-                        Messages.tagOf("area", area)
+                        Messages.tagOf("area", "chunk")
                 ).sendTo(player);
             }
             return true;
         }
 
-        Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, env);
-        if (limitOptional.isEmpty()) return false;
-        var limit = limitOptional.get();
-        var limitInfo = limit.getLimit(item);
+        Optional<Limit> chunkLimitOptional = plugin.getLimits().getFirstLimit(item, chunkEnv);
+        if (chunkLimitOptional.isEmpty()) return false;
 
-        if (regionOptional.isEmpty() && limit.getSettings().isDisallowedPlacementOutsideRegion()) {
+        var chunkLimit = chunkLimitOptional.get();
+        var chunkLimitInfo = chunkLimit.getLimit(item);
+
+        if (regionOptional.isEmpty() && chunkLimit.getSettings().isDisallowedPlacementOutsideRegion()) {
             plugin.getMessages().getMessage(Messages.Key.LIMIT_DISALLOWED_PLACEMENT).addTemplates(TagResolver.resolver(
-                    Messages.tagOf("name", limitInfo.getName()),
-                    Messages.tagOf("area", area)
+                    Messages.tagOf("name", chunkLimitInfo.getName()),
+                    Messages.tagOf("area", "chunk")
             )).sendTo(player);
             return true;
         }
 
-        Consumer<Storage> storageConsumer = storage -> {
-            if (included && regionOptional.isEmpty()) {
+        Consumer<Storage> chunkStorageConsumer = storage -> {
+            if (included) {
                 storage.modify(item, -delta);
             }
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
@@ -138,26 +171,19 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             }
         };
 
-        Optional<Storage> storageOptional;
-        if (regionOptional.isPresent()) {
-            storageOptional = handleAddonAddition(player, regionOptional.get(), storageConsumer);
-        } else {
-            storageOptional = handleChunkAddition(player, chunk, storageConsumer);
-        }
+        Optional<Storage> chunkStorageOptional = handleChunkAddition(player, chunk, chunkStorageConsumer);
+        if (chunkStorageOptional.isEmpty()) return true;
 
-        if (storageOptional.isEmpty()) return true;
-
-        var storage = storageOptional.get();
-        long count = storage.count(limit, item);
-
-        if (count + delta > limitInfo.getLimit()) {
+        long chunkCount = chunkStorageOptional.get().count(chunkLimit, item);
+        if (chunkCount + delta > chunkLimitInfo.getLimit()) {
             plugin.getMessages().getMessage(Messages.Key.LIMIT_REACHED).addTemplates(
-                    Messages.tagOf("limit", StringUtils.pretty(limitInfo.getLimit())),
-                    Messages.tagOf("name", limitInfo.getName()),
-                    Messages.tagOf("area", area)
+                    Messages.tagOf("limit", StringUtils.pretty(chunkLimitInfo.getLimit())),
+                    Messages.tagOf("name", chunkLimitInfo.getName()),
+                    Messages.tagOf("area", "chunk")
             ).sendTo(player);
             return true;
         }
+
         return false;
     }
 
@@ -279,7 +305,14 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
         }
 
+        // Met à jour addon storage si présent
         storageOptional.ifPresent(storage -> storage.modify(item, -delta));
+
+        // Met à jour chunk storage si dans une région (double tracking)
+        if (regionOptional.isPresent()) {
+            plugin.getWorldStorage().getWorld(worldUid).get(chunkKey)
+                    .ifPresent(storage -> storage.modify(item, -delta));
+        }
 
         if (player.hasPermission("insights.notifications")) {
             if (queued) return;
