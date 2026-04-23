@@ -31,12 +31,12 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
 
     @Override
     public String getAuthor() {
-        return String.join(", ", plugin.getPluginMeta().getAuthors());
+        return String.join(", ", plugin.getDescription().getAuthors());
     }
 
     @Override
     public String getVersion() {
-        return plugin.getPluginMeta().getVersion();
+        return plugin.getDescription().getVersion();
     }
 
     @Override

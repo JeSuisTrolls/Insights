@@ -282,14 +282,14 @@ public class Insights extends InsightsPlugin {
             commandManager.brigadierManager().registerMapping(
                     new TypeToken<ScanObjectArrayParser<CommandSender>>() {},
                     builder -> {
-                        builder.to(_ -> StringArgumentType.greedyString());
+                        builder.to(argument -> StringArgumentType.greedyString());
                         builder.cloudSuggestions();
                     }
             );
         }
 
         // Create Annotation Parser
-        var annotationParser = new AnnotationParser<>(commandManager, CommandSender.class);
+        var annotationParser = new AnnotationParser(commandManager, CommandSender.class);
 
         // Parse commands
         annotationParser.parse(new CommandInsights(this));

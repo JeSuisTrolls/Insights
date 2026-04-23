@@ -13,9 +13,9 @@ plugins {
 
 
 group = "dev.frankheijden.insights"
-version = "6.21.0"
+version = "6.20.2"
 val dependencyDir = "$group.dependencies"
-val targetMinecraftVersions = listOf("26.1.2", "1.21.11", "1.21.10", "1.21.9")
+val targetMinecraftVersions = listOf("1.21.11", "1.21.10", "1.21.9")
 
 subprojects {
     apply(plugin = "java")
@@ -83,9 +83,8 @@ subprojects {
         compileJava {
             options.encoding = Charsets.UTF_8.name()
             options.isDeprecation = true
-            if (!nms) {
-                options.release = 21
-            }
+            sourceCompatibility = JavaVersion.VERSION_21.majorVersion
+            targetCompatibility = JavaVersion.VERSION_21.majorVersion
         }
 
         javadoc {
@@ -242,3 +241,4 @@ modrinth {
     gameVersions.addAll(targetMinecraftVersions)
     changelog.set(System.getenv("CHANGE_LOG") ?: "No changelog provided.")
 }
+
