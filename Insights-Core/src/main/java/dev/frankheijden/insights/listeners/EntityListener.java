@@ -10,6 +10,10 @@ import dev.frankheijden.insights.api.events.EntityRemoveFromWorldEvent;
 import dev.frankheijden.insights.api.listeners.InsightsListener;
 import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
 import dev.frankheijden.insights.api.utils.ChunkUtils;
+import dev.frankheijden.insights.api.concurrent.ScanOptions;
+import dev.frankheijden.insights.api.objects.chunk.ChunkPart;
+import dev.frankheijden.insights.api.tasks.ScanTask;
+import java.util.List;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.AnimalTamer;
@@ -284,7 +288,33 @@ public class EntityListener extends InsightsListener {
             storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
         }
 
-        if (storageOptional.isEmpty()) return;
+        if (storageOptional.isEmpty()) {
+            if (regionOptional.isPresent()) {
+                Region region = regionOptional.get();
+                String key = region.getKey();
+                // Si déjà en cours de scan, bloque le spawn
+                if (plugin.getAddonScanTracker().isQueued(key)) {
+                    event.setCancelled(true);
+                    return;
+                }
+                // Lance le scan une seule fois
+                plugin.getAddonScanTracker().add(key);
+                List<ChunkPart> chunkParts = region.toChunkParts();
+                ScanTask.scan(
+                        plugin,
+                        chunkParts,
+                        chunkParts.size(),
+                        ScanOptions.entitiesOnly(),
+                        info -> {},
+                        storage -> {
+                            plugin.getAddonScanTracker().remove(key);
+                            plugin.getAddonStorage().put(key, storage);
+                        }
+                );
+                event.setCancelled(true); // bloque pendant le scan
+            }
+            return;
+        }
 
         Storage storage = storageOptional.get();
         Limit limit = limitOptional.get();
