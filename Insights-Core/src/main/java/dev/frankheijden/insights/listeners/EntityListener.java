@@ -174,7 +174,7 @@ public class EntityListener extends InsightsListener {
     
         if (isSpawnLimited(entity.getType())) {
             handleModification(entity.getLocation(), entity.getType(), -1);
-            return;  // ← manque return et accolade fermante
+            return;
         }
     
         handleEntityRemoval(entity, false);
