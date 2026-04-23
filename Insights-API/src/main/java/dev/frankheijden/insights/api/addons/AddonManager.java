@@ -175,4 +175,19 @@ public class AddonManager {
 
         return regionOptional;
     }
+
+  public Optional<Region> getRegionAware(Location location, @Nullable Player player, ScanObject<?> item) {
+    Optional<Region> regionOptional = getRegion(location);
+    
+    if (regionOptional.isPresent()) {
+      Region region = regionOptional.get();
+      LimitEnvironment env = new LimitEnvironment(player, location.getWorld().getName(), region.getAddon());
+      Optional<Limit> limitOptional = this.plugin.getLimits().getFirstLimit(item, (Predicate)env);
+      if (limitOptional.isEmpty()) {
+        regionOptional = Optional.empty();
+      }
+    } 
+    
+    return regionOptional;
+  }
 }
