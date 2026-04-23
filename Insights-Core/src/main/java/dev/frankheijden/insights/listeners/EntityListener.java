@@ -171,9 +171,14 @@ public class EntityListener extends InsightsListener {
     protected void handleEntityRemoveFromWorld(Entity entity) {
         if (!entity.isDead()) return;
         if (removedEntities.remove(entity.getUniqueId())) return;
-
+    
         if (isSpawnLimited(entity.getType())) {
             handleModification(entity.getLocation(), entity.getType(), -1);
+            return;  // ← manque return et accolade fermante
+        }
+    
+        handleEntityRemoval(entity, false);
+    }
 
     protected boolean handleEntityPlace(Player player, Entity entity) {
         EntityType entityType = entity.getType();
