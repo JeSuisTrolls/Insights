@@ -54,6 +54,42 @@ public class Limits {
         }
     }
 
+    /**
+     * Updates an existing limit in the data structure.
+     */
+    public void updateLimit(Limit limit) {
+        for (TreeSet<Limit> value : materialLimits.values()) {
+            value.removeIf(l -> l.equals(limit));
+        }
+        for (Material m : limit.getMaterials()) {
+            materialLimits.computeIfAbsent(m, k -> new TreeSet<>(
+                    comparingInt(l -> l.getLimit(k).getLimit())
+            )).add(limit);
+        }
+        for (TreeSet<Limit> value : entityLimits.values()) {
+            value.removeIf(l -> l.equals(limit));
+        }
+        for (EntityType e : limit.getEntities()) {
+            entityLimits.computeIfAbsent(e, k -> new TreeSet<>(
+                    comparingInt(l -> l.getLimit(k).getLimit())
+            )).add(limit);
+        }
+    }
+
+    /**
+     * Removes the given limit from the data structure.
+     */
+    public void removeLimit(Limit limit) {
+        this.limits.remove(limit);
+        this.limitsByFileName.remove(limit.getFile().getName());
+        for (TreeSet<Limit> value : materialLimits.values()) {
+            value.removeIf(l -> l.equals(limit));
+        }
+        for (TreeSet<Limit> value : entityLimits.values()) {
+            value.removeIf(l -> l.equals(limit));
+        }
+    }
+
     public List<Limit> getLimits() {
         return new ArrayList<>(limits);
     }
