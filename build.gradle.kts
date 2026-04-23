@@ -83,8 +83,7 @@ subprojects {
         compileJava {
             options.encoding = Charsets.UTF_8.name()
             options.isDeprecation = true
-            sourceCompatibility = JavaVersion.VERSION_21.majorVersion
-            targetCompatibility = JavaVersion.VERSION_21.majorVersion
+            options.release = 21
         }
 
         javadoc {
