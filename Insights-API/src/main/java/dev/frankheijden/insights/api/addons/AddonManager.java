@@ -182,18 +182,20 @@ public class AddonManager {
         return regionOptional;
     }
 
-  public Optional<Region> getRegionAware(Location location, @Nullable Player player, ScanObject<?> item) {
-    Optional<Region> regionOptional = getRegion(location);
-    
-    if (regionOptional.isPresent()) {
-      Region region = regionOptional.get();
-      LimitEnvironment env = new LimitEnvironment(player, location.getWorld().getName(), region.getAddon());
-      Optional<Limit> limitOptional = this.plugin.getLimits().getFirstLimit(item, (Predicate)env);
-      if (limitOptional.isEmpty()) {
-        regionOptional = Optional.empty();
-      }
-    } 
-    
-    return regionOptional;
-  }
+    /**
+     * Looks up a region aware of the limit context for the given player and item.
+     * Returns empty if no limit exists for the addon at this location.
+     */
+    public Optional<Region> getRegionAware(Location location, @Nullable Player player, ScanObject<?> item) {
+        Optional<Region> regionOptional = getRegion(location);
+        if (regionOptional.isPresent()) {
+            Region region = regionOptional.get();
+            LimitEnvironment env = new LimitEnvironment(player, location.getWorld().getName(), region.getAddon());
+            Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, (Predicate<Limit>) env);
+            if (limitOptional.isEmpty()) {
+                regionOptional = Optional.empty();
+            }
+        }
+        return regionOptional;
+    }
 }
