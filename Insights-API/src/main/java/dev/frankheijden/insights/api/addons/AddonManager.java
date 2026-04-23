@@ -1,9 +1,15 @@
 package dev.frankheijden.insights.api.addons;
 
 import dev.frankheijden.insights.api.InsightsPlugin;
+import dev.frankheijden.insights.api.config.LimitEnvironment;
+import dev.frankheijden.insights.api.config.limits.Limit;
+import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
+import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.event.Listener;
+import java.util.function.Predicate;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.MalformedURLException;
