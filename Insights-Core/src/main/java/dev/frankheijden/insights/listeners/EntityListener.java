@@ -1,10 +1,15 @@
 package dev.frankheijden.insights.listeners;
 
 import dev.frankheijden.insights.api.InsightsPlugin;
+import dev.frankheijden.insights.api.addons.Region;
 import dev.frankheijden.insights.api.annotations.AllowPriorityOverride;
+import dev.frankheijden.insights.api.concurrent.storage.Storage;
+import dev.frankheijden.insights.api.config.limits.Limit;
+import dev.frankheijden.insights.api.config.limits.LimitInfo;
 import dev.frankheijden.insights.api.events.EntityRemoveFromWorldEvent;
 import dev.frankheijden.insights.api.listeners.InsightsListener;
 import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
+import dev.frankheijden.insights.api.utils.ChunkUtils;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.AnimalTamer;
@@ -15,6 +20,8 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
+import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.entity.EntityBreakDoorEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -41,7 +48,11 @@ public class EntityListener extends InsightsListener {
             EntityType.GLOW_ITEM_FRAME,
             EntityType.PAINTING
     );
-
+    private static final Set<SpawnReason> PLAYER_CAUSED_SPAWN_REASONS = EnumSet.of(
+            SpawnReason.SPAWNER_EGG,
+            SpawnReason.BREEDING,
+            SpawnReason.SPAWNER
+    );
     private final Set<UUID> removedEntities;
 
     public EntityListener(InsightsPlugin plugin) {
@@ -224,5 +235,53 @@ public class EntityListener extends InsightsListener {
             }
         }
         return Optional.empty();
+    }
+
+
+    @AllowPriorityOverride
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onCreatureSpawn(CreatureSpawnEvent event) {
+        if (!PLAYER_CAUSED_SPAWN_REASONS.contains(event.getSpawnReason())) return;
+    
+        EntityType entityType = event.getEntityType();
+        if (LIMITED_ENTITIES.contains(entityType)) return; // déjà géré ailleurs
+    
+        ScanObject<?> item = ScanObject.of(entityType);
+        Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, limit -> true);
+        if (limitOptional.isEmpty()) return;
+    
+        Location location = event.getLocation();
+        Optional<Region> regionOptional = plugin.getAddonManager().getRegion(location);
+        UUID worldUid = location.getWorld().getUID();
+        long chunkKey = ChunkUtils.getKey(location);
+    
+        Optional<Storage> storageOptional;
+        if (regionOptional.isPresent()) {
+            storageOptional = plugin.getAddonStorage().get(regionOptional.get().getKey());
+        } else {
+            storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
+        }
+    
+        if (storageOptional.isEmpty()) return; // pas de cache = on laisse passer
+    
+        Storage storage = storageOptional.get();
+        Limit limit = limitOptional.get();
+        LimitInfo limitInfo = limit.getLimit(entityType);
+    
+        if (storage.count(limit, item) + 1 > limitInfo.getLimit()) {
+            event.setCancelled(true);
+        }
+    }
+    
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onCreatureSpawnMonitor(CreatureSpawnEvent event) {
+        if (!PLAYER_CAUSED_SPAWN_REASONS.contains(event.getSpawnReason())) return;
+    
+        EntityType entityType = event.getEntityType();
+        if (LIMITED_ENTITIES.contains(entityType)) return;
+    
+        if (plugin.getLimits().getFirstLimit(ScanObject.of(entityType), limit -> true).isEmpty()) return;
+    
+        handleModification(event.getLocation(), entityType, 1);
     }
 }
