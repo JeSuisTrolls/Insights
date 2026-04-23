@@ -87,7 +87,7 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             int delta,
             boolean included
     ) {
-        Optional<Region> regionOptional = plugin.getAddonManager().getRegion(location);
+        Optional<Region> regionOptional = plugin.getAddonManager().getRegionAware(location, player, item);
         var chunk = location.getChunk();
         var world = location.getWorld();
         UUID worldUid = world.getUID();
@@ -116,7 +116,6 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             return true;
         }
 
-        // Get the first (smallest) limit for the specific user (bypass permissions taken into account)
         Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, env);
         if (limitOptional.isEmpty()) return false;
         var limit = limitOptional.get();
@@ -131,13 +130,9 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         }
 
         Consumer<Storage> storageConsumer = storage -> {
-            // Subtract item if it was included in the scan, because the event was cancelled.
-            // Only iff the block was included in the chunk AND its not a cuboid/area scan.
             if (included && regionOptional.isEmpty()) {
                 storage.modify(item, -delta);
             }
-
-            // Notify the user scan completed
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
                 plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_COMPLETED).sendTo(player);
             }
@@ -150,13 +145,11 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             storageOptional = handleChunkAddition(player, chunk, storageConsumer);
         }
 
-        // If the storage is not present, cancel.
         if (storageOptional.isEmpty()) return true;
 
         var storage = storageOptional.get();
         long count = storage.count(limit, item);
 
-        // If count is beyond limit, act
         if (count + delta > limitInfo.getLimit()) {
             plugin.getMessages().getMessage(Messages.Key.LIMIT_REACHED).addTemplates(
                     Messages.tagOf("limit", StringUtils.pretty(limitInfo.getLimit())),
@@ -169,7 +162,7 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
     }
 
     protected void evaluateAddition(Player player, Location location, ScanObject<?> item, int delta) {
-        Optional<Region> regionOptional = plugin.getAddonManager().getRegion(location);
+        Optional<Region> regionOptional = plugin.getAddonManager().getRegionAware(location, player, item);
         World world = location.getWorld();
         long chunkKey = ChunkUtils.getKey(location);
 
@@ -187,7 +180,6 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         if (storageOptional.isEmpty()) return;
         Storage storage = storageOptional.get();
 
-        // If limit is not present, stop here
         Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, env);
         if (limitOptional.isEmpty()) return;
 
@@ -195,7 +187,6 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         LimitInfo limitInfo = limit.getLimit(item);
         long count = storage.count(limit, item);
 
-        // Notify the user (if they have permission)
         if (player.hasPermission("insights.notifications")) {
             float progress = (float) (count + delta) / limitInfo.getLimit();
             plugin.getNotifications().getCachedProgress(player.getUniqueId(), Messages.Key.LIMIT_NOTIFICATION)
@@ -223,16 +214,13 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         ChunkStorage chunkStorage = worldStorage.getWorld(worldUid);
         Optional<Storage> storageOptional = chunkStorage.get(chunkKey);
 
-        // If the chunk is not known
         if (storageOptional.isEmpty()) {
-            // Notify the user scan started
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
                 plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_STARTED).addTemplates(
                         Messages.tagOf("area", "chunk")
                 ).sendTo(player);
             }
 
-            // Submit the chunk for scanning
             plugin.getChunkContainerExecutor().submit(chunk)
                     .thenAccept(storageConsumer)
                     .exceptionally(th -> {
@@ -253,7 +241,6 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         AddonStorage addonStorage = plugin.getAddonStorage();
         Optional<Storage> storageOptional = addonStorage.get(key);
         if (storageOptional.isEmpty()) {
-            // Notify the user scan started
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
                 plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_STARTED).addTemplates(
                         Messages.tagOf("area", plugin.getAddonManager().getAddon(region.getAddon()).getAreaName())
@@ -271,7 +258,7 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
     }
 
     protected void handleRemoval(Player player, Location location, ScanObject<?> item, int delta, boolean included) {
-        Optional<Region> regionOptional = plugin.getAddonManager().getRegion(location);
+        Optional<Region> regionOptional = plugin.getAddonManager().getRegionAware(location, player, item);
         Chunk chunk = location.getChunk();
         World world = location.getWorld();
         UUID worldUid = world.getUID();
@@ -292,21 +279,16 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
         }
 
-        // Modify the area to account for the broken block.
         storageOptional.ifPresent(storage -> storage.modify(item, -delta));
 
-        // Notify the user (if they have permission)
         if (player.hasPermission("insights.notifications")) {
-            // If the area is queued, stop check here (notification will be displayed when it completes).
             if (queued) return;
 
-            // Get the first (smallest) limit for the specific user (bypass permissions taken into account)
             Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, env);
             if (limitOptional.isEmpty()) return;
             Limit limit = limitOptional.get();
             LimitInfo limitInfo = limit.getLimit(item);
 
-            // Create a runnable for the notification.
             Consumer<Storage> notification = storage -> {
                 long count = storage.count(limit, item);
                 float progress = (float) count / limitInfo.getLimit();
@@ -322,19 +304,13 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
                         .send();
             };
 
-            // If the data is already stored, send the notification immediately.
             if (storageOptional.isPresent()) {
                 notification.accept(storageOptional.get());
                 return;
             }
 
-            // Else, we need to scan the area first.
             Consumer<Storage> storageConsumer = storage -> {
-                // Subtract the broken block, as the first modification failed (we had to scan the chunk)
-                // Only if we're not scanning a cuboid (iff cuboid, the block is already removed from the chunk)
                 if (included && regionOptional.isEmpty()) storage.modify(item, -delta);
-
-                // Notify the user
                 notification.accept(storage);
             };
 
@@ -352,7 +328,6 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
     }
 
     private void scanRegion(Player player, Region region, Consumer<Storage> storageConsumer) {
-        // Submit the cuboid for scanning
         plugin.getAddonScanTracker().add(region.getAddon());
         List<ChunkPart> chunkParts = region.toChunkParts();
         ScanTask.scan(
@@ -366,11 +341,7 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
                 (storage, loc, acc) -> storage.mergeRight(acc),
                 storage -> {
                     plugin.getAddonScanTracker().remove(region.getAddon());
-
-                    // Store the cuboid
                     plugin.getAddonStorage().put(region.getKey(), storage);
-
-                    // Give the result back to the consumer
                     storageConsumer.accept(storage);
                 }
         );
