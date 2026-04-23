@@ -83,7 +83,9 @@ subprojects {
         compileJava {
             options.encoding = Charsets.UTF_8.name()
             options.isDeprecation = true
-            options.release = 21
+            if (!nms) {
+                options.release = 21
+            }
         }
 
         javadoc {
