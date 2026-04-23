@@ -338,8 +338,6 @@ public class EntityListener extends InsightsListener {
     
         if (plugin.getLimits().getFirstLimit(ScanObject.of(entityType), limit -> true).isEmpty()) return;
     
-        plugin.getLogger().info("[Debug] Monitor spawn, reason=" + event.getSpawnReason());
-    
         handleModification(event.getLocation(), entityType, 1);
     }
 }
