@@ -168,31 +168,12 @@ public class EntityListener extends InsightsListener {
         handleEntityRemoveFromWorld(event.getEntity());
     }
 
-    protected void handleEntityRemoval(Entity entity, boolean isPlayer) {
-        EntityType entityType = entity.getType();
-    
-        if (isSpawnLimited(entityType)) {
-            removedEntities.add(entity.getUniqueId());
-            handleModification(entity.getLocation(), entityType, -1);
-            return;
-        }
-    
-        if (!LIMITED_ENTITIES.contains(entityType)) return;
-    
-        Location location = entity.getLocation();
-        int delta = 1;
-    
-        if (isPlayer) {
-            removedEntities.add(entity.getUniqueId());
-            Optional<Player> player = getPlayerKiller(entity);
-            if (player.isPresent()) {
-                handleRemoval(player.get(), location, ScanObject.of(entityType), delta);
-                return;
-            }
-        }
-    
-        handleModification(location, entityType, -delta);
-    }
+    protected void handleEntityRemoveFromWorld(Entity entity) {
+        if (!entity.isDead()) return;
+        if (removedEntities.remove(entity.getUniqueId())) return;
+
+        if (isSpawnLimited(entity.getType())) {
+            handleModification(entity.getLocation(), entity.getType(), -1);
 
     protected boolean handleEntityPlace(Player player, Entity entity) {
         EntityType entityType = entity.getType();
@@ -219,19 +200,21 @@ public class EntityListener extends InsightsListener {
                 && plugin.getLimits().getFirstLimit(ScanObject.of(entityType), limit -> true).isPresent();
     }
 
+
     protected void handleEntityRemoval(Entity entity, boolean isPlayer) {
         EntityType entityType = entity.getType();
-
+    
         if (isSpawnLimited(entityType)) {
+            removedEntities.add(entity.getUniqueId());
             handleModification(entity.getLocation(), entityType, -1);
             return;
         }
-
+    
         if (!LIMITED_ENTITIES.contains(entityType)) return;
-
+    
         Location location = entity.getLocation();
         int delta = 1;
-
+    
         if (isPlayer) {
             removedEntities.add(entity.getUniqueId());
             Optional<Player> player = getPlayerKiller(entity);
@@ -240,10 +223,10 @@ public class EntityListener extends InsightsListener {
                 return;
             }
         }
-
+    
         handleModification(location, entityType, -delta);
     }
-
+        
     /**
      * Tries to figure out the player who killed the given entity.
      */
