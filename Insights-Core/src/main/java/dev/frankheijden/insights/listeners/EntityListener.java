@@ -294,12 +294,11 @@ public class EntityListener extends InsightsListener {
             if (regionOptional.isPresent()) {
                 Region region = regionOptional.get();
                 String key = region.getKey();
-                // Si déjà en cours de scan, bloque le spawn
                 if (plugin.getAddonScanTracker().isQueued(key)) {
                     event.setCancelled(true);
                     return;
                 }
-                // Lance le scan une seule fois
+                
                 plugin.getAddonScanTracker().add(key);
                 List<ChunkPart> chunkParts = region.toChunkParts();
                 ScanTask.scan(
@@ -313,7 +312,7 @@ public class EntityListener extends InsightsListener {
                             plugin.getAddonStorage().put(key, storage);
                         }
                 );
-                event.setCancelled(true); // bloque pendant le scan
+                event.setCancelled(true); 
             }
             return;
         }
@@ -333,12 +332,14 @@ public class EntityListener extends InsightsListener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCreatureSpawnMonitor(CreatureSpawnEvent event) {
         if (!PLAYER_CAUSED_SPAWN_REASONS.contains(event.getSpawnReason())) return;
-
+    
         EntityType entityType = event.getEntityType();
         if (LIMITED_ENTITIES.contains(entityType)) return;
-
+    
         if (plugin.getLimits().getFirstLimit(ScanObject.of(entityType), limit -> true).isEmpty()) return;
-
+    
+        plugin.getLogger().info("[Debug] Monitor spawn, reason=" + event.getSpawnReason());
+    
         handleModification(event.getLocation(), entityType, 1);
     }
 }
