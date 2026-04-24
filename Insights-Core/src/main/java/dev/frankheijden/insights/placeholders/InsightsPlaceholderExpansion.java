@@ -2,27 +2,31 @@ package dev.frankheijden.insights.placeholders;
 
 import dev.frankheijden.insights.api.InsightsPlugin;
 import dev.frankheijden.insights.api.addons.Region;
+import dev.frankheijden.insights.api.concurrent.ScanOptions;
 import dev.frankheijden.insights.api.concurrent.storage.Storage;
 import dev.frankheijden.insights.api.config.LimitEnvironment;
 import dev.frankheijden.insights.api.config.limits.Limit;
+import dev.frankheijden.insights.api.objects.chunk.ChunkPart;
 import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
+import dev.frankheijden.insights.api.tasks.ScanTask;
 import dev.frankheijden.insights.api.utils.ChunkUtils;
 import dev.frankheijden.insights.api.utils.StringUtils;
-import dev.frankheijden.insights.api.concurrent.ScanOptions;
-import dev.frankheijden.insights.api.objects.chunk.ChunkPart;
-import dev.frankheijden.insights.api.tasks.ScanTask;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
-import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
 
     private final InsightsPlugin plugin;
+    private final Set<String> scannedRegions = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public InsightsPlaceholderExpansion(InsightsPlugin plugin) {
         this.plugin = plugin;
@@ -41,6 +45,13 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
     @Override
     public String getVersion() {
         return plugin.getDescription().getVersion();
+    }
+
+    /**
+     * Clears the scanned regions cache, forcing a rescan on next placeholder request.
+     */
+    public void clearScannedRegions() {
+        scannedRegions.clear();
     }
 
     @Override
@@ -75,21 +86,21 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                         Optional<Storage> storageOptional;
                         if (regionOptional.isPresent()) {
                             Region region = regionOptional.get();
-                            plugin.getLogger().info("[Debug] region.getKey()=" + region.getKey() + " region.getAddon()=" + region.getAddon());
-                            storageOptional = plugin.getAddonStorage().get(region.getKey());
-                            plugin.getLogger().info("[Debug] storageOptional empty=" + storageOptional.isEmpty());
-                            plugin.getLogger().info("[Debug] isQueued(key)=" + plugin.getAddonScanTracker().isQueued(region.getKey()));
-                            if (storageOptional.isEmpty() && !plugin.getAddonScanTracker().isQueued(region.getKey())) {
-                                plugin.getLogger().info("[Debug] Launching scan for " + region.getKey());
-                                plugin.getAddonScanTracker().add(region.getKey());
+                            String key = region.getKey();
+                            storageOptional = plugin.getAddonStorage().get(key);
+
+                            boolean needsScan = !scannedRegions.contains(key)
+                                    && !plugin.getAddonScanTracker().isQueued(key);
+
+                            if (needsScan) {
+                                scannedRegions.add(key);
+                                plugin.getAddonScanTracker().add(key);
                                 List<ChunkPart> chunkParts = region.toChunkParts();
                                 ScanTask.scan(plugin, chunkParts, chunkParts.size(), ScanOptions.all(), info -> {}, storage -> {
-                                    plugin.getLogger().info("[Debug] Scan complete for " + region.getKey());
-                                    plugin.getAddonScanTracker().remove(region.getKey());
-                                    if (plugin.getAddonStorage().get(region.getKey()).isEmpty()) {
-                                        plugin.getAddonStorage().put(region.getKey(), storage);
-                                    }
+                                    plugin.getAddonScanTracker().remove(key);
+                                    plugin.getAddonStorage().put(key, storage);
                                 });
+                                return "";
                             }
                         } else {
                             long chunkKey = ChunkUtils.getKey(location);
@@ -98,9 +109,7 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                                 plugin.getChunkContainerExecutor().submit(location.getChunk());
                             }
                         }
-                        long countValue = storageOptional.map(storage -> storage.count(limit, item)).orElse(0L);
-                        plugin.getLogger().info("[Debug] count=" + countValue + " item=" + item.name());
-                        return String.valueOf(countValue);
+                        return storageOptional.map(storage -> String.valueOf(storage.count(limit, item))).orElse("");
                     case "count-chunk":
                         long chunkKeyOnly = ChunkUtils.getKey(location);
                         return plugin.getWorldStorage().getWorld(worldUid).get(chunkKeyOnly)
