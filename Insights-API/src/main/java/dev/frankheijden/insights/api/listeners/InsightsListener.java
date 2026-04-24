@@ -99,6 +99,7 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         if (regionOptional.isPresent()) {
             var region = regionOptional.get();
             queued = plugin.getAddonScanTracker().isQueued(region.getKey());
+            plugin.getLogger().info("[Debug] handleAddition key=" + region.getKey() + " queued=" + queued);
             area = plugin.getAddonManager().getAddon(region.getAddon()).getAreaName();
             env = new LimitEnvironment(player, world.getName(), region.getAddon());
         } else {
