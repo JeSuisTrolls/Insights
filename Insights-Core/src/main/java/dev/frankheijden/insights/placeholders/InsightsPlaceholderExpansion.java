@@ -98,7 +98,9 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                                 plugin.getChunkContainerExecutor().submit(location.getChunk());
                             }
                         }
-                        return storageOptional.map(storage -> String.valueOf(storage.count(limit, item))).orElse("");
+                        long countValue = storageOptional.map(storage -> storage.count(limit, item)).orElse(0L);
+                        plugin.getLogger().info("[Debug] count=" + countValue + " item=" + item.name());
+                        return String.valueOf(countValue);
                     case "count-chunk":
                         long chunkKeyOnly = ChunkUtils.getKey(location);
                         return plugin.getWorldStorage().getWorld(worldUid).get(chunkKeyOnly)
