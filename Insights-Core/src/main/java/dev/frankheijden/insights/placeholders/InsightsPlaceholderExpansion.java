@@ -75,11 +75,16 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                         Optional<Storage> storageOptional;
                         if (regionOptional.isPresent()) {
                             Region region = regionOptional.get();
+                            plugin.getLogger().info("[Debug] region.getKey()=" + region.getKey() + " region.getAddon()=" + region.getAddon());
                             storageOptional = plugin.getAddonStorage().get(region.getKey());
+                            plugin.getLogger().info("[Debug] storageOptional empty=" + storageOptional.isEmpty());
+                            plugin.getLogger().info("[Debug] isQueued(key)=" + plugin.getAddonScanTracker().isQueued(region.getKey()));
                             if (storageOptional.isEmpty() && !plugin.getAddonScanTracker().isQueued(region.getKey())) {
+                                plugin.getLogger().info("[Debug] Launching scan for " + region.getKey());
                                 plugin.getAddonScanTracker().add(region.getKey());
                                 List<ChunkPart> chunkParts = region.toChunkParts();
                                 ScanTask.scan(plugin, chunkParts, chunkParts.size(), ScanOptions.all(), info -> {}, storage -> {
+                                    plugin.getLogger().info("[Debug] Scan complete for " + region.getKey());
                                     plugin.getAddonScanTracker().remove(region.getKey());
                                     if (plugin.getAddonStorage().get(region.getKey()).isEmpty()) {
                                         plugin.getAddonStorage().put(region.getKey(), storage);
