@@ -8,6 +8,9 @@ import dev.frankheijden.insights.api.config.limits.Limit;
 import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
 import dev.frankheijden.insights.api.utils.ChunkUtils;
 import dev.frankheijden.insights.api.utils.StringUtils;
+import dev.frankheijden.insights.api.concurrent.ScanOptions;
+import dev.frankheijden.insights.api.objects.chunk.ChunkPart;
+import dev.frankheijden.insights.api.tasks.ScanTask;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -15,6 +18,7 @@ import org.bukkit.entity.Player;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
 
