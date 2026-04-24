@@ -72,15 +72,19 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                         if (regionOptional.isPresent()) {
                             Region region = regionOptional.get();
                             storageOptional = plugin.getAddonStorage().get(region.getKey());
+                            if (storageOptional.isEmpty() && !plugin.getAddonScanTracker().isQueued(region.getKey())) {
+                                plugin.getAddonScanTracker().add(region.getKey());
+                                List<ChunkPart> chunkParts = region.toChunkParts();
+                                ScanTask.scan(plugin, chunkParts, chunkParts.size(), ScanOptions.all(), info -> {}, storage -> {
+                                    plugin.getAddonScanTracker().remove(region.getKey());
+                                    plugin.getAddonStorage().put(region.getKey(), storage);
+                                });
+                            }
                         } else {
                             long chunkKey = ChunkUtils.getKey(location);
                             storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
-                            if (storageOptional.isEmpty()) {
-                                plugin.getChunkContainerExecutor().submit(location.getChunk());
-                            }
                         }
-                        return storageOptional.map(storage -> String.valueOf(storage.count(limit, item)))
-                                .orElse("0");
+                        return storageOptional.map(storage -> String.valueOf(storage.count(limit, item))).orElse("0");
                     case "count-chunk":
                         long chunkKeyOnly = ChunkUtils.getKey(location);
                         return plugin.getWorldStorage().getWorld(worldUid).get(chunkKeyOnly)
