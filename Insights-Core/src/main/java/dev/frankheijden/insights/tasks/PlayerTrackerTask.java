@@ -46,8 +46,6 @@ public class PlayerTrackerTask extends InsightsAsyncTask {
             return;
         }
 
-        plugin.getLogger().info("[Debug] PlayerTracker scanning " + locations.size() + " chunks");
-
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             long now = System.nanoTime();
             for (ChunkLocation loc : locations) {
@@ -69,10 +67,6 @@ public class PlayerTrackerTask extends InsightsAsyncTask {
                                         e
                                 );
                             }
-                        } else {
-                            plugin.getLogger().info("[Debug] Scan complete for " + loc
-                                    + " entities=" + s.count(i -> i.getType()
-                                    == dev.frankheijden.insights.api.objects.wrappers.ScanObject.Type.ENTITY));
                         }
                         this.scanLocations.remove(loc);
                     });
