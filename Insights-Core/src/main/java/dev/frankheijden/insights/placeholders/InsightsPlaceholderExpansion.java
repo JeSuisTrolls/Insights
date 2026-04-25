@@ -2,24 +2,19 @@ package dev.frankheijden.insights.placeholders;
 
 import dev.frankheijden.insights.api.InsightsPlugin;
 import dev.frankheijden.insights.api.addons.Region;
-import dev.frankheijden.insights.api.concurrent.ScanOptions;
 import dev.frankheijden.insights.api.concurrent.storage.Storage;
 import dev.frankheijden.insights.api.config.LimitEnvironment;
 import dev.frankheijden.insights.api.config.limits.Limit;
-import dev.frankheijden.insights.api.objects.chunk.ChunkPart;
 import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
-import dev.frankheijden.insights.api.tasks.ScanTask;
 import dev.frankheijden.insights.api.utils.ChunkUtils;
 import dev.frankheijden.insights.api.utils.StringUtils;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
 
@@ -76,35 +71,13 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                         Optional<Storage> storageOptional;
                         if (regionOptional.isPresent()) {
                             Region region = regionOptional.get();
-                            String key = region.getKey();
-                            storageOptional = plugin.getAddonStorage().get(key);
-
-                            boolean storageEmpty = storageOptional.isEmpty()
-                                || (item.getType() == ScanObject.Type.MATERIAL
-                                    && storageOptional.get().keys().stream().noneMatch(k -> k.getType() == ScanObject.Type.MATERIAL));
-
-                            if (storageEmpty && !plugin.getAddonScanTracker().isQueued(key)) {
-                                plugin.getAddonScanTracker().add(key);
-                                List<ChunkPart> chunkParts = region.toChunkParts();
-                                plugin.getLogger().info("[Debug] chunkParts=" + chunkParts.size()
-                                    + " parts=" + chunkParts.stream()
-                                        .map(p -> p.getChunkLocation().getX() + "," + p.getChunkLocation().getZ())
-                                        .collect(Collectors.joining(" | "))
-                                    + " playerChunk=" + (location.getBlockX() >> 4) + "," + (location.getBlockZ() >> 4));
-                                ScanTask.scan(plugin, chunkParts, chunkParts.size(), ScanOptions.scanOnly(), info -> {}, storage -> {
-                                    plugin.getAddonScanTracker().remove(key);
-                                    plugin.getAddonStorage().put(key, storage);
-                                });
-                                return "";
-                            }
+                            storageOptional = plugin.getAddonStorage().get(region.getKey());
                         } else {
                             long chunkKey = ChunkUtils.getKey(location);
                             storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
-                            if (storageOptional.isEmpty()) {
-                                plugin.getChunkContainerExecutor().submit(location.getChunk());
-                            }
                         }
-                        return storageOptional.map(storage -> String.valueOf(storage.count(limit, item))).orElse("");
+                        return storageOptional.map(storage -> String.valueOf(storage.count(limit, item)))
+                                .orElse("");
                     case "count-chunk":
                         long chunkKeyOnly = ChunkUtils.getKey(location);
                         return plugin.getWorldStorage().getWorld(worldUid).get(chunkKeyOnly)
