@@ -15,18 +15,15 @@ import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
 
     private final InsightsPlugin plugin;
-    private final Set<String> scannedRegions = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public InsightsPlaceholderExpansion(InsightsPlugin plugin) {
         this.plugin = plugin;
@@ -45,13 +42,6 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
     @Override
     public String getVersion() {
         return plugin.getDescription().getVersion();
-    }
-
-    /**
-     * Clears the scanned regions cache, forcing a rescan on next placeholder request.
-     */
-    public void clearScannedRegions() {
-        scannedRegions.clear();
     }
 
     @Override
@@ -88,14 +78,17 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                             Region region = regionOptional.get();
                             String key = region.getKey();
                             storageOptional = plugin.getAddonStorage().get(key);
-                    
-                            boolean storageEmpty = storageOptional.isEmpty() 
-                                || (item.getType() == ScanObject.Type.MATERIAL 
+
+                            boolean storageEmpty = storageOptional.isEmpty()
+                                || (item.getType() == ScanObject.Type.MATERIAL
                                     && storageOptional.get().keys().stream().noneMatch(k -> k.getType() == ScanObject.Type.MATERIAL));
-                    
+
                             if (storageEmpty && !plugin.getAddonScanTracker().isQueued(key)) {
                                 plugin.getAddonScanTracker().add(key);
                                 List<ChunkPart> chunkParts = region.toChunkParts();
+                                plugin.getLogger().info("[Debug] chunkParts=" + chunkParts.size() + " parts=" + chunkParts.stream()
+                                    .map(p -> p.getChunkLocation().getX() + "," + p.getChunkLocation().getZ())
+                                    .collect(Collectors.joining(" | ")));
                                 ScanTask.scan(plugin, chunkParts, chunkParts.size(), ScanOptions.scanOnly(), info -> {}, storage -> {
                                     plugin.getAddonScanTracker().remove(key);
                                     plugin.getAddonStorage().put(key, storage);
