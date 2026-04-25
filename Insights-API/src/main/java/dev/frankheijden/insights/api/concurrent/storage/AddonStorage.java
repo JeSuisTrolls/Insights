@@ -17,7 +17,6 @@ public class AddonStorage {
     }
 
     public void put(String key, Storage storage) {
-        System.out.println("[Debug] AddonStorage.put key=" + key + " caller=" + Thread.currentThread().getStackTrace()[2]);
         this.distributionMap.put(key, storage);
     }
 
