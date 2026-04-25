@@ -87,8 +87,8 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                                 plugin.getAddonScanTracker().add(key);
                                 List<ChunkPart> chunkParts = region.toChunkParts();
                                 plugin.getLogger().info("[Debug] chunkParts=" + chunkParts.size() + " parts=" + chunkParts.stream()
-    .map(p -> p.getChunkLocation().getX() + "," + p.getChunkLocation().getZ())
-    .collect(Collectors.joining(" | ")) + " playerChunk=" + (location.getBlockX() >> 4) + "," + (location.getBlockZ() >> 4));
+                                        .map(p -> p.getChunkLocation().getX() + "," + p.getChunkLocation().getZ())
+                                        .collect(Collectors.joining(" | ")) + " playerChunk=" + (location.getBlockX() >> 4) + "," + (location.getBlockZ() >> 4));
                                     .map(p -> p.getChunkLocation().getX() + "," + p.getChunkLocation().getZ())
                                     .collect(Collectors.joining(" | ")));
                                 ScanTask.scan(plugin, chunkParts, chunkParts.size(), ScanOptions.scanOnly(), info -> {}, storage -> {
