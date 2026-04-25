@@ -92,6 +92,9 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                             if (storageOptional.isEmpty() && !plugin.getAddonScanTracker().isQueued(key)) {
                                 plugin.getAddonScanTracker().add(key);
                                 List<ChunkPart> chunkParts = region.toChunkParts();
+                                plugin.getLogger().info("[Debug] islandLocation=" + region.toChunkParts().stream()
+                                    .map(p -> p.getChunkLocation().getX() + "," + p.getChunkLocation().getZ())
+                                    .collect(java.util.stream.Collectors.joining(" | ")));
                                 ScanTask.scan(plugin, chunkParts, chunkParts.size(), ScanOptions.scanOnly(), info -> {}, storage -> {
                                     plugin.getAddonScanTracker().remove(key);
                                     plugin.getAddonStorage().put(key, storage);
