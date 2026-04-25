@@ -14,6 +14,7 @@ repositories {
 dependencies {
     compileOnly(libs.brigadier)
     compileOnly(libs.placeholderapi)
+    compileOnly(files("libs/SquidSkyblock.jar")) // ajoute ça
     implementation(libs.commodore)
     implementation(libs.cloudPaper)
     implementation(libs.cloudAnnotations)
