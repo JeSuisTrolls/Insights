@@ -8,7 +8,6 @@ import dev.frankheijden.insights.api.listeners.manager.InsightsListenerManager;
 import dev.frankheijden.insights.listeners.BlockListener;
 import dev.frankheijden.insights.listeners.ChunkListener;
 import dev.frankheijden.insights.listeners.EntityListener;
-import dev.frankheijden.insights.listeners.IslandEnterListener;
 import dev.frankheijden.insights.listeners.PaperBlockListener;
 import dev.frankheijden.insights.listeners.PaperEntityListener;
 import dev.frankheijden.insights.listeners.PistonListener;
@@ -75,7 +74,6 @@ public class ListenerManager implements InsightsListenerManager {
     private final PaperBlockListener paperBlockListener;
     private final EntityListener entityListener;
     private final PistonListener pistonListener;
-    private final IslandEnterListener islandEnterListener;
 
     /**
      * Constructs the ListenerManager with all Insights listeners.
@@ -90,7 +88,6 @@ public class ListenerManager implements InsightsListenerManager {
         this.paperBlockListener = PaperLib.isPaper() ? new PaperBlockListener(plugin) : null;
         this.entityListener = PaperLib.isPaper() ? null : new EntityListener(plugin);
         this.pistonListener = new PistonListener(plugin);
-        this.islandEnterListener = plugin.isAvailable("SquidSkyblock") ? new IslandEnterListener(plugin) : null;
     }
 
     @Override
@@ -116,10 +113,6 @@ public class ListenerManager implements InsightsListenerManager {
 
         if (plugin.getSettings().APPLY_PISTON_LIMITS) {
             listeners.add(pistonListener);
-        }
-
-        if (islandEnterListener != null) {
-            listeners.add(islandEnterListener);
         }
 
         listeners.addAll(disableListeners);
@@ -183,7 +176,6 @@ public class ListenerManager implements InsightsListenerManager {
         if (paperBlockListener != null) HandlerList.unregisterAll(paperBlockListener);
         if (entityListener != null) HandlerList.unregisterAll(entityListener);
         HandlerList.unregisterAll(pistonListener);
-        if (islandEnterListener != null) HandlerList.unregisterAll(islandEnterListener);
     }
 
     @Override
