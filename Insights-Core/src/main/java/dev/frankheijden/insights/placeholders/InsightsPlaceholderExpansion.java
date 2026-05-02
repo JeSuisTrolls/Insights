@@ -2,19 +2,25 @@ package dev.frankheijden.insights.placeholders;
 
 import dev.frankheijden.insights.api.InsightsPlugin;
 import dev.frankheijden.insights.api.addons.Region;
+import dev.frankheijden.insights.api.concurrent.ScanOptions;
 import dev.frankheijden.insights.api.concurrent.storage.Storage;
 import dev.frankheijden.insights.api.config.LimitEnvironment;
 import dev.frankheijden.insights.api.config.limits.Limit;
+import dev.frankheijden.insights.api.objects.chunk.ChunkPart;
 import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
+import dev.frankheijden.insights.api.tasks.ScanTask;
 import dev.frankheijden.insights.api.utils.ChunkUtils;
 import dev.frankheijden.insights.api.utils.StringUtils;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.logging.Level;
 
 public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
 
@@ -66,28 +72,68 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                 switch (args[1].toLowerCase(Locale.ENGLISH)) {
                     case "name": return limit.getLimit(item).getName();
                     case "max": return String.valueOf(limit.getLimit(item).getLimit());
-                    case "count":
+                    case "count": {
                         Optional<Region> regionOptional = plugin.getAddonManager().getRegion(location);
                         Optional<Storage> storageOptional;
                         if (regionOptional.isPresent()) {
                             Region region = regionOptional.get();
                             storageOptional = plugin.getAddonStorage().get(region.getKey());
+                            if (storageOptional.isEmpty()) {
+                                triggerRegionScan(region);
+                                return "";
+                            }
                         } else {
                             long chunkKey = ChunkUtils.getKey(location);
                             storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
+                            if (storageOptional.isEmpty()) {
+                                triggerChunkScan(location.getChunk());
+                                return "";
+                            }
                         }
-                        return storageOptional.map(storage -> String.valueOf(storage.count(limit, item)))
-                                .orElse("");
-                    case "count-chunk":
-                        long chunkKeyOnly = ChunkUtils.getKey(location);
-                        return plugin.getWorldStorage().getWorld(worldUid).get(chunkKeyOnly)
-                                .map(storage -> String.valueOf(storage.count(limit, item)))
-                                .orElse("");
+                        return String.valueOf(storageOptional.get().count(limit, item));
+                    }
+                    case "count-chunk": {
+                        long chunkKey = ChunkUtils.getKey(location);
+                        Optional<Storage> storageOptional = plugin.getWorldStorage().getWorld(worldUid).get(chunkKey);
+                        if (storageOptional.isEmpty()) {
+                            triggerChunkScan(location.getChunk());
+                            return "";
+                        }
+                        return String.valueOf(storageOptional.get().count(limit, item));
+                    }
                     default: break;
                 }
                 break;
             default: break;
         }
         return "";
+    }
+
+    private void triggerChunkScan(Chunk chunk) {
+        UUID worldUid = chunk.getWorld().getUID();
+        long chunkKey = ChunkUtils.getKey(chunk);
+        if (plugin.getWorldChunkScanTracker().isQueued(worldUid, chunkKey)) return;
+        plugin.getChunkContainerExecutor().submit(chunk)
+                .exceptionally(th -> {
+                    plugin.getLogger().log(Level.SEVERE, th, th::getMessage);
+                    return null;
+                });
+    }
+
+    private void triggerRegionScan(Region region) {
+        if (plugin.getAddonScanTracker().isQueued(region.getAddon())) return;
+        plugin.getAddonScanTracker().add(region.getAddon());
+        List<ChunkPart> chunkParts = region.toChunkParts();
+        ScanTask.scan(
+                plugin,
+                chunkParts,
+                chunkParts.size(),
+                ScanOptions.scanOnly(),
+                info -> {},
+                storage -> {
+                    plugin.getAddonScanTracker().remove(region.getAddon());
+                    plugin.getAddonStorage().put(region.getKey(), storage);
+                }
+        );
     }
 }
