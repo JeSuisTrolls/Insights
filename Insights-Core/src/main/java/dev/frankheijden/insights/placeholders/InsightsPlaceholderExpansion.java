@@ -112,8 +112,14 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
     private void triggerChunkScan(Chunk chunk) {
         UUID worldUid = chunk.getWorld().getUID();
         long chunkKey = ChunkUtils.getKey(chunk);
-        if (plugin.getWorldChunkScanTracker().isQueued(worldUid, chunkKey)) return;
+        boolean queued = plugin.getWorldChunkScanTracker().isQueued(worldUid, chunkKey);
+        plugin.getLogger().info("[DEBUG][Placeholder] triggerChunkScan: chunkKey=" + chunkKey
+                + " world=" + chunk.getWorld().getName() + " alreadyQueued=" + queued);
+        if (queued) return;
         plugin.getChunkContainerExecutor().submit(chunk)
+                .thenAccept(storage -> plugin.getLogger().info(
+                        "[DEBUG][Placeholder] triggerChunkScan COMPLETE: chunkKey=" + chunkKey
+                        + " world=" + chunk.getWorld().getName()))
                 .exceptionally(th -> {
                     plugin.getLogger().log(Level.SEVERE, th, th::getMessage);
                     return null;
@@ -121,8 +127,11 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
     }
 
     private void triggerRegionScan(Region region) {
-        if (plugin.getAddonScanTracker().isQueued(region.getAddon())) return;
-        plugin.getAddonScanTracker().add(region.getAddon());
+        boolean queued = plugin.getAddonScanTracker().isQueued(region.getKey());
+        plugin.getLogger().info("[DEBUG][Placeholder] triggerRegionScan: key=" + region.getKey()
+                + " alreadyQueued=" + queued);
+        if (queued) return;
+        plugin.getAddonScanTracker().add(region.getKey());
         List<ChunkPart> chunkParts = region.toChunkParts();
         ScanTask.scan(
                 plugin,
@@ -131,7 +140,8 @@ public class InsightsPlaceholderExpansion extends PlaceholderExpansion {
                 ScanOptions.scanOnly(),
                 info -> {},
                 storage -> {
-                    plugin.getAddonScanTracker().remove(region.getAddon());
+                    plugin.getLogger().info("[DEBUG][Placeholder] triggerRegionScan COMPLETE: key=" + region.getKey());
+                    plugin.getAddonScanTracker().remove(region.getKey());
                     plugin.getAddonStorage().put(region.getKey(), storage);
                 }
         );

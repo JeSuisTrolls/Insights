@@ -99,16 +99,22 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         if (regionOptional.isPresent()) {
             var region = regionOptional.get();
             queued = plugin.getAddonScanTracker().isQueued(region.getKey());
-            plugin.getLogger().info("[Debug] handleAddition key=" + region.getKey() + " queued=" + queued);
             area = plugin.getAddonManager().getAddon(region.getAddon()).getAreaName();
             env = new LimitEnvironment(player, world.getName(), region.getAddon());
+            plugin.getLogger().info("[DEBUG][handleAddition] player=" + player.getName()
+                    + " item=" + item + " delta=" + delta
+                    + " area=region key=" + region.getKey() + " queued=" + queued);
         } else {
             queued = plugin.getWorldChunkScanTracker().isQueued(worldUid, chunkKey);
             area = "chunk";
             env = new LimitEnvironment(player, world.getName());
+            plugin.getLogger().info("[DEBUG][handleAddition] player=" + player.getName()
+                    + " item=" + item + " delta=" + delta
+                    + " area=chunk chunkKey=" + chunkKey + " queued=" + queued);
         }
 
         if (queued) {
+            plugin.getLogger().info("[DEBUG][handleAddition] BLOCKED - scan in progress for area=" + area);
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
                 plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_QUEUED).addTemplates(
                         Messages.tagOf("area", area)
@@ -118,11 +124,17 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         }
 
         Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, env);
-        if (limitOptional.isEmpty()) return false;
+        if (limitOptional.isEmpty()) {
+            plugin.getLogger().info("[DEBUG][handleAddition] no limit found for item=" + item + ", allowing");
+            return false;
+        }
         var limit = limitOptional.get();
         var limitInfo = limit.getLimit(item);
+        plugin.getLogger().info("[DEBUG][handleAddition] limit found: name=" + limitInfo.getName()
+                + " max=" + limitInfo.getLimit());
 
         if (regionOptional.isEmpty() && limit.getSettings().isDisallowedPlacementOutsideRegion()) {
+            plugin.getLogger().info("[DEBUG][handleAddition] BLOCKED - disallowed placement outside region");
             plugin.getMessages().getMessage(Messages.Key.LIMIT_DISALLOWED_PLACEMENT).addTemplates(TagResolver.resolver(
                     Messages.tagOf("name", limitInfo.getName()),
                     Messages.tagOf("area", area)
@@ -146,10 +158,15 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             storageOptional = handleChunkAddition(player, chunk, storageConsumer);
         }
 
-        if (storageOptional.isEmpty()) return true;
+        if (storageOptional.isEmpty()) {
+            plugin.getLogger().info("[DEBUG][handleAddition] BLOCKED - storage empty, scan triggered");
+            return true;
+        }
 
         var storage = storageOptional.get();
         long count = storage.count(limit, item);
+        plugin.getLogger().info("[DEBUG][handleAddition] count=" + count + " delta=" + delta
+                + " limit=" + limitInfo.getLimit() + " -> " + (count + delta > limitInfo.getLimit() ? "BLOCKED" : "ALLOWED"));
 
         if (count + delta > limitInfo.getLimit()) {
             plugin.getMessages().getMessage(Messages.Key.LIMIT_REACHED).addTemplates(
@@ -214,6 +231,8 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         WorldStorage worldStorage = plugin.getWorldStorage();
         ChunkStorage chunkStorage = worldStorage.getWorld(worldUid);
         Optional<Storage> storageOptional = chunkStorage.get(chunkKey);
+        plugin.getLogger().info("[DEBUG][handleChunkAddition] chunkKey=" + chunkKey
+                + " world=" + chunk.getWorld().getName() + " storagePresent=" + storageOptional.isPresent());
 
         if (storageOptional.isEmpty()) {
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
@@ -223,7 +242,10 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
             }
 
             plugin.getChunkContainerExecutor().submit(chunk)
-                    .thenAccept(storageConsumer)
+                    .thenAccept(storage -> {
+                        plugin.getLogger().info("[DEBUG][handleChunkAddition] scan COMPLETE chunkKey=" + chunkKey);
+                        storageConsumer.accept(storage);
+                    })
                     .exceptionally(th -> {
                         plugin.getLogger().log(Level.SEVERE, th, th::getMessage);
                         return null;
@@ -241,6 +263,8 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
 
         AddonStorage addonStorage = plugin.getAddonStorage();
         Optional<Storage> storageOptional = addonStorage.get(key);
+        plugin.getLogger().info("[DEBUG][handleAddonAddition] key=" + key
+                + " storagePresent=" + storageOptional.isPresent());
         if (storageOptional.isEmpty()) {
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
                 plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_STARTED).addTemplates(
@@ -329,7 +353,9 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
     }
 
     private void scanRegion(Player player, Region region, Consumer<Storage> storageConsumer) {
-        plugin.getAddonScanTracker().add(region.getAddon());
+        plugin.getLogger().info("[DEBUG][scanRegion] START key=" + region.getKey()
+                + " chunkParts=" + region.toChunkParts().size());
+        plugin.getAddonScanTracker().add(region.getKey());
         List<ChunkPart> chunkParts = region.toChunkParts();
         ScanTask.scan(
                 plugin,
@@ -341,7 +367,8 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
                 DistributionStorage::new,
                 (storage, loc, acc) -> storage.mergeRight(acc),
                 storage -> {
-                    plugin.getAddonScanTracker().remove(region.getAddon());
+                    plugin.getLogger().info("[DEBUG][scanRegion] COMPLETE key=" + region.getKey());
+                    plugin.getAddonScanTracker().remove(region.getKey());
                     plugin.getAddonStorage().put(region.getKey(), storage);
                     storageConsumer.accept(storage);
                 }
