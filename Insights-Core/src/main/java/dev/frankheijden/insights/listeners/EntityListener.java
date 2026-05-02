@@ -33,12 +33,17 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
+import org.bukkit.event.entity.EntityBreedEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.projectiles.ProjectileSource;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -58,6 +63,7 @@ public class EntityListener extends InsightsListener {
             SpawnReason.SPAWNER
     );
     private final Set<UUID> removedEntities;
+    private final Map<UUID, Player> pendingEggPlayers = new HashMap<>();
 
     public EntityListener(InsightsPlugin plugin) {
         super(plugin);
@@ -327,17 +333,45 @@ public class EntityListener extends InsightsListener {
     }
 
     /**
+     * Caches the player when they use a spawn egg, to retrieve it in onCreatureSpawnMonitor.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onSpawnEggUse(PlayerInteractEvent event) {
+        if (!event.getAction().isRightClick()) return;
+        ItemStack item = event.getItem();
+        if (item == null || !item.getType().name().endsWith("_SPAWN_EGG")) return;
+        pendingEggPlayers.put(event.getPlayer().getUniqueId(), event.getPlayer());
+        plugin.getServer().getScheduler().runTask(plugin,
+                () -> pendingEggPlayers.remove(event.getPlayer().getUniqueId()));
+    }
+
+    /**
+     * Caches the player when they trigger a breeding event.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityBreed(EntityBreedEvent event) {
+        if (!(event.getBreeder() instanceof Player player)) return;
+        pendingEggPlayers.put(player.getUniqueId(), player);
+        plugin.getServer().getScheduler().runTask(plugin,
+                () -> pendingEggPlayers.remove(player.getUniqueId()));
+    }
+
+    /**
      * Monitors creature spawn events to update the cache.
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCreatureSpawnMonitor(CreatureSpawnEvent event) {
         if (!PLAYER_CAUSED_SPAWN_REASONS.contains(event.getSpawnReason())) return;
-    
+
         EntityType entityType = event.getEntityType();
         if (LIMITED_ENTITIES.contains(entityType)) return;
-    
+
         if (plugin.getLimits().getFirstLimit(ScanObject.of(entityType), limit -> true).isEmpty()) return;
-    
-        handleModification(event.getLocation(), entityType, 1);
+
+        Location location = event.getLocation();
+        handleModification(location, entityType, 1);
+
+        pendingEggPlayers.values().stream().findFirst().ifPresent(player ->
+                evaluateAddition(player, location, ScanObject.of(entityType), 1));
     }
 }

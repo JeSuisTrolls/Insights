@@ -180,11 +180,20 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
     }
 
     protected void evaluateAddition(Player player, Location location, ScanObject<?> item, int delta) {
+        Optional<Region> regionOptional = plugin.getAddonManager().getRegion(location);
         World world = location.getWorld();
         long chunkKey = ChunkUtils.getKey(location);
 
-        LimitEnvironment env = new LimitEnvironment(player, world.getName());
-        Optional<Storage> storageOptional = plugin.getWorldStorage().getWorld(world.getUID()).get(chunkKey);
+        LimitEnvironment env;
+        Optional<Storage> storageOptional;
+        if (regionOptional.isPresent()) {
+            Region region = regionOptional.get();
+            env = new LimitEnvironment(player, world.getName(), region.getAddon());
+            storageOptional = plugin.getAddonStorage().get(region.getKey());
+        } else {
+            env = new LimitEnvironment(player, world.getName());
+            storageOptional = plugin.getWorldStorage().getWorld(world.getUID()).get(chunkKey);
+        }
 
         if (storageOptional.isEmpty()) return;
         Storage storage = storageOptional.get();
