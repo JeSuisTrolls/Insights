@@ -1,15 +1,9 @@
 package dev.frankheijden.insights.api.addons;
 
 import dev.frankheijden.insights.api.InsightsPlugin;
-import dev.frankheijden.insights.api.config.LimitEnvironment;
-import dev.frankheijden.insights.api.config.limits.Limit;
-import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
-import org.bukkit.entity.Player;
-import org.jetbrains.annotations.Nullable;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.event.Listener;
-import java.util.function.Predicate;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.MalformedURLException;
@@ -182,20 +176,4 @@ public class AddonManager {
         return regionOptional;
     }
 
-    /**
-     * Looks up a region aware of the limit context for the given player and item.
-     * Returns empty if no limit exists for the addon at this location.
-     */
-    public Optional<Region> getRegionAware(Location location, @Nullable Player player, ScanObject<?> item) {
-        Optional<Region> regionOptional = getRegion(location);
-        if (regionOptional.isPresent()) {
-            Region region = regionOptional.get();
-            LimitEnvironment env = new LimitEnvironment(player, location.getWorld().getName(), region.getAddon());
-            Optional<Limit> limitOptional = plugin.getLimits().getFirstLimit(item, (Predicate<Limit>) env);
-            if (limitOptional.isEmpty()) {
-                regionOptional = Optional.empty();
-            }
-        }
-        return regionOptional;
-    }
 }
