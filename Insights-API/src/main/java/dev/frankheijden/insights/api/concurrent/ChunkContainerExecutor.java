@@ -82,13 +82,26 @@ public class ChunkContainerExecutor implements ContainerExecutor {
 
         UUID worldUid = world.getUID();
         long chunkKey = container.getChunkKey();
+        InsightsPlugin.getInstance().getLogger().info(
+                "[DEBUG][ChunkContainerExecutor] submit: chunkKey=" + chunkKey
+                + " world=" + world.getName() + " save=" + options.save() + " track=" + options.track());
         if (options.track()) {
             scanTracker.set(worldUid, chunkKey, true);
+            InsightsPlugin.getInstance().getLogger().info(
+                    "[DEBUG][ChunkContainerExecutor] tracker SET queued=true chunkKey=" + chunkKey);
         }
 
         return submit(container).thenApply(storage -> {
-            if (options.save()) worldStorage.getWorld(worldUid).put(chunkKey, storage);
-            if (options.track()) scanTracker.set(worldUid, chunkKey, false);
+            if (options.save()) {
+                worldStorage.getWorld(worldUid).put(chunkKey, storage);
+                InsightsPlugin.getInstance().getLogger().info(
+                        "[DEBUG][ChunkContainerExecutor] storage SAVED to WorldStorage chunkKey=" + chunkKey);
+            }
+            if (options.track()) {
+                scanTracker.set(worldUid, chunkKey, false);
+                InsightsPlugin.getInstance().getLogger().info(
+                        "[DEBUG][ChunkContainerExecutor] tracker SET queued=false chunkKey=" + chunkKey);
+            }
 
             var metricsManager = InsightsPlugin.getInstance().getMetricsManager();
             metricsManager.getChunkScanMetric().increment();
