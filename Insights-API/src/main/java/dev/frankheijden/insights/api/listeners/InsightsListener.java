@@ -266,6 +266,15 @@ public abstract class InsightsListener extends InsightsBase implements Listener 
         plugin.getLogger().info("[DEBUG][handleAddonAddition] key=" + key
                 + " storagePresent=" + storageOptional.isPresent());
         if (storageOptional.isEmpty()) {
+            if (plugin.getAddonScanTracker().isQueued(key)) {
+                if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
+                    plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_QUEUED).addTemplates(
+                            Messages.tagOf("area", plugin.getAddonManager().getAddon(region.getAddon()).getAreaName())
+                    ).sendTo(player);
+                }
+                return Optional.empty();
+            }
+
             if (plugin.getSettings().canReceiveAreaScanNotifications(player)) {
                 plugin.getMessages().getMessage(Messages.Key.AREA_SCAN_STARTED).addTemplates(
                         Messages.tagOf("area", plugin.getAddonManager().getAddon(region.getAddon()).getAreaName())
